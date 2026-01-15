@@ -3,24 +3,32 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message
 
-# Получаем токен и ID админа из переменных окружения
+# Токен бота берём из переменной окружения (она доступна даже на бесплатной версии)
 TOKEN = os.getenv("TOKEN")
-ADMINS = list(map(int, os.getenv("ADMINS").split(",")))
+if not TOKEN:
+    print("Ошибка: переменная TOKEN не задана!")
+    exit(1)
+
+# Твой ID админа прописан прямо в коде
+ADMINS = [228986476]  # <- сюда твой Telegram ID
 
 # Создаем объект бота и диспетчера
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Обработчик команд /start
+# Обработчик сообщений
 @dp.message()
-async def handle_start(message: Message):
+async def handle_message(message: Message):
     if message.text == "/start":
-        await message.answer("Добрый день! Напишите свой вопрос.")
+        await message.answer("Привет! Напиши свой вопрос, и администратор ответит.")
         return
 
-    # Пересылаем сообщение админам
+    # Пересылаем сообщение админу
     for admin in ADMINS:
-        await bot.send_message(admin, f"Сообщение от {message.from_user.id}:\n{message.text}")
+        try:
+            await bot.send_message(admin, f"Сообщение от {message.from_user.id}:\n{message.text}")
+        except Exception as e:
+            print(f"Не удалось отправить сообщение администратору {admin}: {e}")
 
     await message.answer("Ваше сообщение отправлено администраторам!")
 
@@ -31,5 +39,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
