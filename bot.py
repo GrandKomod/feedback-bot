@@ -10,7 +10,7 @@ if not TOKEN:
     exit(1)
 
 # Админ прописан напрямую
-ADMINS = [228986476]  # <- сюда твой Telegram ID
+ADMINS = [228986476,1197066931]  # <- сюда твой Telegram ID
 
 # Создаем бот и диспетчер
 bot = Bot(token=TOKEN)
@@ -60,3 +60,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
