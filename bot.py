@@ -5,7 +5,7 @@ from aiogram.types import Message
 
 # Получаем токен и ID админа из переменных окружения
 TOKEN = os.getenv("TOKEN")
-ADMINS = list(map(int, os.getenv(228986476).split(",")))
+ADMINS = list(map(int, os.getenv("ADMINS").split(",")))
 
 # Создаем объект бота и диспетчера
 bot = Bot(token=TOKEN)
@@ -31,4 +31,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
