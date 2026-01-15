@@ -3,7 +3,7 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message
 
-# Токен берём из переменной окружения
+# Токен бота берём из переменной окружения
 TOKEN = os.getenv("TOKEN")
 if not TOKEN:
     print("Ошибка: переменная TOKEN не задана!")
@@ -12,22 +12,46 @@ if not TOKEN:
 # Админ прописан напрямую
 ADMINS = [228986476]  # <- сюда твой Telegram ID
 
+# Создаем бот и диспетчер
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+# Словарь для хранения последних сообщений пользователей (user_id: текст)
+user_messages = {}
+
 @dp.message()
 async def handle_message(message: Message):
-    if message.text == "/start":
-        await message.answer("Привет! Напиши свой вопрос, и администратор ответит.")
+    user_id = message.from_user.id
+
+    # Команда для ответа от администратора
+    if message.text.startswith("/reply"):
+        if user_id not in ADMINS:
+            await message.answer("❌ У вас нет прав администратора.")
+            return
+        try:
+            # формат команды: /reply <user_id> <текст ответа>
+            _, reply_id, *reply_text = message.text.split()
+            reply_id = int(reply_id)
+            reply_text = " ".join(reply_text)
+            await bot.send_message(reply_id, f"💬 Ответ администратора: {reply_text}")
+            await message.answer(f"✅ Ответ отправлен пользователю {reply_id}")
+        except Exception as e:
+            await message.answer(f"Ошибка при отправке: {e}")
         return
 
-    # Пересылаем сообщение админу
-    for admin in ADMINS:
-        try:
-            await bot.send_message(admin, f"Сообщение от {message.from_user.id}:\n{message.text}")
-        except Exception as e:
-            print(f"Не удалось отправить сообщение администратору {admin}: {e}")
+    # Если пользователь написал /start
+    if message.text == "/start":
+        await message.answer("Добрый день! Напишите свой вопрос.")
+        return
 
+    # Сохраняем сообщение пользователя
+    user_messages[user_id] = message.text
+
+    # Пересылаем сообщение админам
+    for admin in ADMINS:
+        await bot.send_message(admin, f"📩 Сообщение от {user_id}:\n{message.text}")
+
+    # Ответ пользователю
     await message.answer("Ваше сообщение отправлено администраторам!")
 
 async def main():
