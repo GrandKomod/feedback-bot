@@ -3,20 +3,18 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message
 
-# Токен бота берём из переменной окружения (она доступна даже на бесплатной версии)
+# Токен берём из переменной окружения
 TOKEN = os.getenv("TOKEN")
 if not TOKEN:
     print("Ошибка: переменная TOKEN не задана!")
     exit(1)
 
-# Твой ID админа прописан прямо в коде
+# Админ прописан напрямую
 ADMINS = [228986476]  # <- сюда твой Telegram ID
 
-# Создаем объект бота и диспетчера
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Обработчик сообщений
 @dp.message()
 async def handle_message(message: Message):
     if message.text == "/start":
@@ -32,7 +30,6 @@ async def handle_message(message: Message):
 
     await message.answer("Ваше сообщение отправлено администраторам!")
 
-# Основная функция запуска бота
 async def main():
     print("Бот запущен")
     await dp.start_polling(bot)
