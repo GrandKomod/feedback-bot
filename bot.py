@@ -12,91 +12,105 @@ if not TOKEN:
 # Админ прописан напрямую
 ADMINS = [228986476,1197066931]  # <- сюда твой Telegram ID
 
-# Инициализация бота
-# =======================
-if TOKEN:
-    bot = Bot(token=TOKEN)
-    dp = Dispatcher()
-else:
-    bot = None
-    dp = None
 
-# =======================
-# Команды
-# =======================
-if dp:
-    # /start
-    @dp.message(Command("start"))
-    async def start_handler(message: Message):
-        await message.answer(f"Добрый день, {message.from_user.first_name}, напишите ваш вопрос.")
+# ====================
 
-    # /reply <user_id> <текст> — для админа
-    @dp.message(Command("reply"))
-    async def reply_handler(message: Message):
-        if message.from_user.id not in ADMINS:
-            await message.reply("❌ У вас нет прав для этой команды.")
+bot = Bot(token=TOKEN)
+dp = Dispatcher()
+
+@dp.message()
+async def handle_message(message: Message):
+    if not message.text:
+        return
+
+    user = message.from_user
+    text = message.text.strip()
+
+    # ===== КОМАНДА ОТВЕТА АДМИНА =====
+    if text.startswith("/reply"):
+        if user.id not in ADMINS:
+            await message.answer("❌ У вас нет прав администратора.")
+            return
+
+        parts = text.split(maxsplit=2)
+        if len(parts) < 3:
+            await message.answer("❗ Формат:\n/reply user_id текст")
             return
 
         try:
-            parts = message.text.split(maxsplit=2)
-            user_id = int(parts[1])
-            text = parts[2]
-        except (IndexError, ValueError):
-            await message.reply("Использование: /reply <user_id> <текст>")
-            return
+            reply_id = int(parts[1])
+            reply_text = parts[2]
 
-        try:
-            await bot.send_message(chat_id=user_id, text=text)
-            await message.reply(f"✅ Сообщение отправлено пользователю {user_id}")
+            await bot.send_message(
+                reply_id,
+                f"💬 Ответ администратора:\n\n{reply_text}"
+            )
+
+            await message.answer(f"✅ Ответ отправлен пользователю {reply_id}")
+
         except Exception as e:
-            await message.reply(f"❌ Не удалось отправить сообщение: {e}")
+            await message.answer(f"⚠️ Ошибка: {e}")
 
-    # Обработка сообщений от пользователей
-    @dp.message()
-    async def user_message_handler(message: Message):
-        # Ответ пользователю
-        await message.reply("Ваше сообщение получено, скоро ответим!.")
+        return
 
-        # Время сообщения
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # ===== /start =====
+    if text == "/start":
+        await message.answer(
+            "👋 Добрый день!\n"
+            "Напишите свой вопрос."
+        )
+        return
 
-        # Формируем текст уведомления для админа
-        admin_text = (
-            f"📩 Новое сообщение от пользователя:\n"
-            f"ID: {message.from_user.id}\n"
-            f"Имя: {message.from_user.full_name}\n"
-            f"Username: @{message.from_user.username}\n"
-            f"Время: {timestamp}\n\n"
-            f"Сообщение:\n{message.text}"
+    # ===== ОБЫЧНОЕ СООБЩЕНИЕ =====
+
+    username = f"@{user.username}" if user.username else "—"
+    full_name = user.full_name
+    user_id = user.id
+    time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    admin_text = (
+        "📩 Новое сообщение от пользователя:\n\n"
+        f"🆔 ID: {user_id}\n"
+        f"👤 Имя: {full_name}\n"
+        f"🔗 Username: {username}\n"
+        f"⏰ Время: {time_str}\n\n"
+        f"💬 Сообщение:\n{text}"
+    )
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✉️ Ответить пользователю",
+                    callback_data=f"reply_{user_id}"
+                )
+            ]
+        ]
+    )
+
+    for admin in ADMINS:
+        await bot.send_message(
+            admin,
+            admin_text,
+            reply_markup=keyboard
         )
 
-        # Кнопка "Ответить пользователю"
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(
-                text="Ответить пользователю",
-                switch_inline_query_current_chat=f"/reply {message.from_user.id} "
-            )]
-        ])
+    await message.answer("✅ Ваше сообщение отправлено администраторам!")
 
-        # Пересылаем сообщение всем администраторам с кнопкой
-        for admin_id in ADMINS:
-            try:
-                await bot.send_message(chat_id=admin_id, text=admin_text, reply_markup=keyboard)
-            except Exception as e:
-                print(f"Не удалось отправить администратору {admin_id}: {e}")
+# ===== ОБРАБОТКА КНОПКИ =====
+@dp.callback_query(lambda c: c.data.startswith("reply_"))
+async def reply_button(callback):
+    user_id = callback.data.replace("reply_", "")
+    await callback.message.answer(
+        f"✏️ Чтобы ответить пользователю, отправь команду:\n\n"
+        f"/reply {user_id} текст_ответа"
+    )
+    await callback.answer()
 
-# =======================
-# Запуск бота
-# =======================
 async def main():
-    if bot and dp:
-        print("Бот запускается...")
-        try:
-            await dp.start_polling(bot)
-        finally:
-            await bot.session.close()
-    else:
-        print("Бот не запущен из-за отсутствия TOKEN или ADMINS")
+    print("🤖 Бот запущен")
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
