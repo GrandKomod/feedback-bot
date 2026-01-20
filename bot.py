@@ -1,85 +1,104 @@
 import os
 import asyncio
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import Message
+from datetime import datetime
 
-# Токен бота берём из переменной окружения
+from aiogram import Bot, Dispatcher
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import Command
+
+# ===== НАСТРОЙКИ =====
+
 TOKEN = os.getenv("TOKEN")
 if not TOKEN:
-    print("Ошибка: переменная TOKEN не задана!")
-    exit(1)
+    raise RuntimeError("Ошибка: переменная TOKEN не задана!")
 
-# Админ прописан напрямую
-ADMINS = [228986476,1197066931]  # <- сюда твой Telegram ID
+# Админы прописаны напрямую (для bothost / free-хостингов)
+ADMINS = [228986476, 1197066931]
 
-
-# =====================
+# ===== ИНИЦИАЛИЗАЦИЯ =====
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+# ===== ОБРАБОТКА /start =====
+
+@dp.message(Command("start"))
+async def start_handler(message: Message):
+    await message.answer("Здравствуйте! Напишите ваш вопрос, и администратор вам ответит.")
+
+# ===== ОБРАБОТКА СООБЩЕНИЙ ОТ ПОЛЬЗОВАТЕЛЕЙ =====
+
 @dp.message()
 async def handle_message(message: Message):
-    if not message.text:
-        return
-
     user = message.from_user
-    text = message.text.strip()
+    user_id = user.id
 
-    # ===== ОТВЕТ АДМИНА =====
-    if text.startswith("/reply"):
-        if user.id not in ADMINS:
-            await message.answer("❌ У вас нет прав администратора.")
-            return
-
-        parts = text.split(maxsplit=2)
-        if len(parts) < 3:
-            await message.answer("❗ Формат:\n/reply user_id текст")
-            return
-
-        try:
-            target_id = int(parts[1])
-            reply_text = parts[2]
-
-            await bot.send_message(
-                target_id,
-                f"💬 Ответ администратора:\n\n{reply_text}"
-            )
-
-            await message.answer("✅ Ответ отправлен")
-
-        except Exception as e:
-            await message.answer(f"⚠️ Ошибка: {e}")
-
+    # Если админ пишет команду ответа
+    if user_id in ADMINS and message.text.startswith("/reply"):
+        await handle_admin_reply(message)
         return
 
-    # ===== /start =====
-    if text == "/start":
-        await message.answer(
-            "👋 Добрый день!\n"
-            "Напишите ваш вопрос — мы передадим его администраторам."
-        )
-        return
-
-    # ===== СООБЩЕНИЕ ОТ ПОЛЬЗОВАТЕЛЯ =====
-
+    # Обычное сообщение пользователя → админам
     time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    username = f"@{user.username}" if user.username else "—"
 
-    admin_message = (
-        "📩 Новое сообщение от пользователя\n\n"
-        f"🆔 ID: {user.id}\n"
-        f"👤 Имя: {user.full_name}\n"
-        f"🔗 Username: {username}\n"
-        f"⏰ Время: {time_str}\n\n"
-        f"💬 Сообщение:\n{text}\n\n"
-        f"✏️ Ответить:\n/reply {user.id} текст"
+    text_for_admins = (
+        "📩 Новое сообщение от пользователя:\n\n"
+        f"ID: {user_id}\n"
+        f"Имя: {user.full_name}\n"
+        f"Username: @{user.username if user.username else 'нет'}\n"
+        f"Время: {time_str}\n\n"
+        f"Сообщение:\n{message.text}"
+    )
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✉️ Ответить пользователю",
+                    callback_data=f"reply:{user_id}"
+                )
+            ]
+        ]
     )
 
     for admin in ADMINS:
-        await bot.send_message(admin, admin_message)
+        await bot.send_message(admin, text_for_admins, reply_markup=keyboard)
 
-    await message.answer("✅ Ваше сообщение отправлено администраторам!")
+    await message.answer("✅ Ваше сообщение отправлено администраторам.")
+
+# ===== CALLBACK ДЛЯ КНОПКИ =====
+
+@dp.callback_query(lambda c: c.data.startswith("reply:"))
+async def reply_button_handler(callback):
+    user_id = callback.data.split(":")[1]
+    await callback.message.answer(
+        f"Введите команду:\n\n"
+        f"/reply {user_id} текст_ответа"
+    )
+    await callback.answer()
+
+# ===== ОТВЕТ АДМИНА ПОЛЬЗОВАТЕЛЮ =====
+
+async def handle_admin_reply(message: Message):
+    try:
+        _, user_id, *reply_text = message.text.split()
+        user_id = int(user_id)
+        reply_text = " ".join(reply_text)
+
+        if not reply_text:
+            await message.answer("❌ Текст ответа пуст.")
+            return
+
+        await bot.send_message(
+            user_id,
+            f"💬 Ответ администратора:\n\n{reply_text}"
+        )
+        await message.answer("✅ Ответ отправлен пользователю.")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка: {e}")
+
+# ===== ЗАПУСК =====
 
 async def main():
     print("🤖 Бот запущен")
